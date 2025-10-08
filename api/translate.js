@@ -17,6 +17,18 @@ export default async function handler(req, res) {
   try {
     const { text, mode } = req.body;
 
+    // Debug logging
+    console.log('API Key exists:', !!OPENROUTER_API_KEY);
+    console.log('Request body:', { text, mode });
+
+    // Check if API key is available
+    if (!OPENROUTER_API_KEY) {
+      return res.status(500).json({ 
+        error: 'OpenRouter API key not configured in environment variables',
+        success: false 
+      });
+    }
+
     // Validate input
     if (!text || !mode) {
       return res.status(400).json({ error: 'Missing text or mode' });

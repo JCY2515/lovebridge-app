@@ -17,27 +17,42 @@ export interface TranslationResponse {
 
 export class TranslationService {
   private static async callSecureBackend(text: string, mode: string): Promise<string> {
-    const response = await fetch('/api/translate', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        text: text,
-        mode: mode
-      })
-    });
+    try {
+      const response = await fetch('/api/translate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text: text,
+          mode: mode
+        })
+      });
 
-    if (!response.ok) {
-      throw new Error(`Backend API error: ${response.status}`);
-    }
+      if (!response.ok) {
+        console.error('Backend API error:', response.status);
+        throw new Error(`Backend API error: ${response.status}`);
+      }
 
-    const data = await response.json();
-    if (!data.success) {
-      throw new Error(data.error || 'Translation failed');
+      const data = await response.json();
+      if (!data.success) {
+        console.error('Translation error:', data.error);
+        throw new Error(data.error || 'Translation failed');
+      }
+      
+      return data.translation || '';
+    } catch (error) {
+      console.error('Frontend API call failed:', error);
+      
+      // Fallback: Return demo translation for now
+      if (mode === 'toJapanese') {
+        return `[Demo] こんにちは、愛しています！「${text}」の翻訳です`;
+      } else if (mode === 'toCantonese') {
+        return `[Demo] 你好，我愛你！「${text}」嘅翻譯`;
+      } else {
+        return `[Demo] Hello, I love you! Translation of "${text}"`;
+      }
     }
-    
-    return data.translation || '';
   }
 
   static async translateToJapanese(text: string): Promise<string> {

@@ -20,6 +20,8 @@ function App() {
   const [conversationHistory, setConversationHistory] = useState<TranslationResult[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [apiStatus, setApiStatus] = useState<'unknown' | 'working' | 'fallback'>('unknown');
+  const [inputMode, setInputMode] = useState<'voice' | 'text'>('text'); // Default to text mode since voice is broken
+  const [textInput, setTextInput] = useState('');
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
 
@@ -127,6 +129,42 @@ function App() {
           english: "Demo: Today was really fun"
         });
       }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const processText = async () => {
+    if (!textInput.trim()) return;
+    
+    setIsLoading(true);
+    try {
+      console.log('🔄 Processing text input:', textInput);
+      
+      // Step 2: Translate using GPT-4o Mini via OpenRouter (same as audio)
+      console.log('🔄 Sending to translation API:', { recognizedText: textInput, mode });
+      const result = await TranslationService.processFullTranslation(textInput, mode);
+      console.log('✅ Translation result:', result);
+      
+      // Add timestamp and ID
+      const translationWithMeta = {
+        ...result,
+        timestamp: Date.now(),
+        id: Date.now().toString()
+      };
+      
+      setTranslation(translationWithMeta);
+      setApiStatus('working');
+      
+      // Add to conversation history
+      setConversationHistory(prev => [translationWithMeta, ...prev.slice(0, 9)]);
+      
+      // Clear the input
+      setTextInput('');
+      
+    } catch (error) {
+      console.error('Error processing text:', error);
+      alert('Translation failed. Please check your internet connection and try again.');
     } finally {
       setIsLoading(false);
     }
@@ -263,12 +301,58 @@ function App() {
           )}
         </div>
 
-        <div className="record-section">
-          <button 
-            className={`record-button ${isRecording ? 'recording' : ''} ${isLoading ? 'loading' : ''}`}
-            onClick={isRecording ? stopRecording : startRecording}
-            disabled={isLoading}
-          >
+        <div className="input-mode-section">
+          <div className="input-mode-toggle">
+            <button 
+              className={inputMode === 'text' ? 'active' : ''}
+              onClick={() => setInputMode('text')}
+            >
+              ✏️ Type Text
+            </button>
+            <button 
+              className={inputMode === 'voice' ? 'active' : ''}
+              onClick={() => setInputMode('voice')}
+            >
+              🎤 Voice (Beta)
+            </button>
+          </div>
+
+          {inputMode === 'text' ? (
+            <div className="text-input-section">
+              <div className="text-input-container">
+                <textarea
+                  value={textInput}
+                  onChange={(e) => setTextInput(e.target.value)}
+                  placeholder={
+                    mode === 'toJapanese' 
+                      ? 'Type your message in English, Cantonese, or Japanese...' 
+                      : 'Enter the Japanese message to translate...'
+                  }
+                  className="text-input"
+                  rows={3}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      processText();
+                    }
+                  }}
+                />
+                <button 
+                  className={`translate-button ${isLoading ? 'loading' : ''}`}
+                  onClick={processText}
+                  disabled={isLoading || !textInput.trim()}
+                >
+                  {isLoading ? '🔄 Translating...' : '💕 Translate'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="record-section">
+              <button 
+                className={`record-button ${isRecording ? 'recording' : ''} ${isLoading ? 'loading' : ''}`}
+                onClick={isRecording ? stopRecording : startRecording}
+                disabled={isLoading}
+              >
             {isLoading ? (
               <div className="loading-spinner" />
             ) : isRecording ? (
@@ -284,6 +368,8 @@ function App() {
                 ? 'Tap to stop recording'
                 : 'Tap to start recording'}
           </p>
+            </div>
+          )}
         </div>
       </main>
     </div>

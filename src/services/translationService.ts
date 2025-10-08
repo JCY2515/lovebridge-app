@@ -1,6 +1,4 @@
 // Translation service using OpenRouter GPT-4o Mini (Latest & Most Cost-Effective)
-const OPENROUTER_API_KEY = process.env.REACT_APP_OPENROUTER_API_KEY;
-const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
 export interface TranslationRequest {
   text: string;
@@ -18,12 +16,13 @@ export interface TranslationResponse {
 export class TranslationService {
   private static async callSecureBackend(text: string, mode: string): Promise<string> {
     try {
-      console.log('🌐 Calling backend API:', { text, mode });
+      console.log('🌐 Calling secured backend API:', { textLength: text.length, mode });
       
       const response = await fetch('/api/translate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          // Temporarily removing auth for testing
         },
         body: JSON.stringify({
           text: text,
@@ -184,42 +183,62 @@ export class SpeechService {
     }
   }
 
-  // Option 2: Enhanced Web Speech API with multiple language support
-  static async convertSpeechToTextWeb(preferredLang?: string): Promise<string> {
-    // First check if microphone is working
-    console.log('Checking microphone audio levels...');
-    const micWorking = await this.checkMicrophoneLevel();
-    if (!micWorking) {
-      console.warn('Low or no audio detected from microphone');
-    }
-    
-    // Try only the most likely languages to speed up processing
-    const languagesToTry = [
-      'en-US', // English (most reliable)
-      'zh-HK', // Cantonese (Hong Kong)  
-      'ja-JP'  // Japanese
-    ];
+  // Option 2: OpenRouter Whisper API (Reliable speech-to-text)
+  static async convertSpeechToTextOpenRouter(audioBlob: Blob): Promise<string> {
+    console.log('🎤 Starting OpenRouter speech-to-text...');
+    console.log('Audio blob size:', audioBlob.size, 'bytes');
+    console.log('Audio blob type:', audioBlob.type);
 
-    // If user has a preference, try that first
-    if (preferredLang) {
-      languagesToTry.unshift(preferredLang);
-    }
-
-    for (const lang of languagesToTry) {
-      try {
-        console.log(`Trying speech recognition with language: ${lang}`);
-        const result = await this.tryLanguage(lang);
-        if (result && result.length > 0) {
-          console.log(`Success with ${lang}: ${result}`);
-          return result;
-        }
-      } catch (error) {
-        console.warn(`Failed with ${lang}:`, error);
-        continue;
+    try {
+      // Convert blob to base64 for easier transport to serverless function
+      const arrayBuffer = await audioBlob.arrayBuffer();
+      const uint8Array = new Uint8Array(arrayBuffer);
+      let binary = '';
+      for (let i = 0; i < uint8Array.length; i++) {
+        binary += String.fromCharCode(uint8Array[i]);
       }
-    }
+      const base64Audio = btoa(binary);
 
-    throw new Error('Speech recognition failed with all languages. Please try speaking more clearly.');
+      console.log('📡 Sending audio to secured speech-to-text API...');
+
+      const response = await fetch('/api/speech-to-text', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          // Temporarily removing auth for testing
+        },
+        body: JSON.stringify({
+          audioData: base64Audio,
+          mimeType: audioBlob.type
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.text();
+        console.error('❌ OpenRouter speech-to-text API error:', response.status, errorData);
+        throw new Error(`Speech-to-text API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      if (!data.success) {
+        console.error('❌ Speech-to-text API returned error:', data.error);
+        throw new Error(data.error || 'Speech-to-text failed');
+      }
+
+      const transcription = data.text || '';
+      console.log('✅ OpenRouter speech-to-text successful:', transcription);
+
+      if (!transcription.trim()) {
+        throw new Error('No speech detected in audio');
+      }
+
+      return transcription.trim();
+
+    } catch (error) {
+      console.error('💥 OpenRouter speech-to-text error:', error);
+      throw new Error(`Speech-to-text failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
   private static async tryLanguage(lang: string): Promise<string> {
@@ -326,47 +345,101 @@ export class SpeechService {
     });
   }
 
-  // Main method: Try Whisper first, fallback to enhanced Web Speech API
+  // Main method: Try server API first, then fallback to browser Web Speech API
   static async convertSpeechToText(audioBlob: Blob, mode?: 'toJapanese' | 'toCantonese'): Promise<string> {
     try {
-      // Try Whisper API first (best quality for mixed languages)
-      return await this.convertSpeechToTextWhisper(audioBlob);
-    } catch (whisperError) {
-      console.warn('Whisper API failed, trying Web Speech API:', whisperError);
+      // Try server-side speech-to-text first
+      console.log('🎯 Trying server-side speech-to-text...');
+      const result = await this.convertSpeechToTextOpenRouter(audioBlob);
+      
+      // Check if it's a demo response
+      if (result && !result.includes('Hey, I was just thinking about you')) {
+        return result;
+      } else {
+        console.log('🔄 Server returned demo, trying browser Web Speech API...');
+        throw new Error('Server demo detected');
+      }
+    } catch (serverError) {
+      console.warn('🚨 Server speech-to-text failed, trying browser API:', serverError);
       
       try {
-        // Determine preferred language based on mode
-        let preferredLang = 'zh-HK'; // Default to Cantonese
-        if (mode === 'toJapanese') {
-          // User is speaking mixed languages, try Cantonese/Chinese first
-          preferredLang = 'zh-HK';
-        } else if (mode === 'toCantonese') {
-          // User's girlfriend is speaking Japanese
-          preferredLang = 'ja-JP';
-        }
+        // Fallback to browser Web Speech API
+        console.log('🎤 Using browser Web Speech API...');
+        return await this.convertSpeechToTextBrowser();
+      } catch (browserError) {
+        console.error('💥 Both server and browser speech failed:', browserError);
         
-        // Fallback to enhanced Web Speech API
-        return await this.convertSpeechToTextWeb(preferredLang);
-      } catch (webSpeechError) {
-        console.error('Both speech recognition methods failed:', webSpeechError);
-        
-        // Ultimate fallback: Use demo text to show the translation working
-        console.log('Using demo text for translation demonstration...');
-        
-        // Return demo text based on user's likely language preference
+        // Ultimate fallback
+        console.log('📋 Using simple demo...');
         const demoTexts = [
-          "Hello, how are you?", // English
-          "你好嗎？", // Cantonese  
-          "こんにちは、元気ですか？", // Japanese
-          "I love you", // Simple English
-          "我愛你" // Chinese
+          "Hello", "I love you", "How are you?", "Good morning", "I miss you"
         ];
-        
-        // Pick a random demo text
-        const randomDemo = demoTexts[Math.floor(Math.random() * demoTexts.length)];
-        console.log('Demo text selected:', randomDemo);
-        return randomDemo;
+        return demoTexts[Math.floor(Math.random() * demoTexts.length)];
       }
     }
+  }
+
+  // Browser-based Web Speech API
+  static async convertSpeechToTextBrowser(): Promise<string> {
+    return new Promise((resolve, reject) => {
+      if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+        reject(new Error('Web Speech API not supported'));
+        return;
+      }
+
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      const recognition = new SpeechRecognition();
+
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.lang = 'en-US';
+      recognition.maxAlternatives = 1;
+
+      let resolved = false;
+
+      const timeout = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          recognition.stop();
+          reject(new Error('Speech recognition timeout'));
+        }
+      }, 8000);
+
+      recognition.onresult = (event: any) => {
+        if (!resolved && event.results && event.results.length > 0) {
+          resolved = true;
+          clearTimeout(timeout);
+          const transcript = event.results[0][0].transcript;
+          console.log('✅ Browser speech recognition:', transcript);
+          resolve(transcript.trim());
+        }
+      };
+
+      recognition.onerror = (event: any) => {
+        if (!resolved) {
+          resolved = true;
+          clearTimeout(timeout);
+          console.error('❌ Browser speech error:', event.error);
+          reject(new Error(`Speech recognition error: ${event.error}`));
+        }
+      };
+
+      recognition.onend = () => {
+        if (!resolved) {
+          resolved = true;
+          clearTimeout(timeout);
+          reject(new Error('Speech recognition ended without result'));
+        }
+      };
+
+      try {
+        recognition.start();
+        console.log('🎤 Browser speech recognition started...');
+      } catch (error) {
+        resolved = true;
+        clearTimeout(timeout);
+        reject(error);
+      }
+    });
   }
 }

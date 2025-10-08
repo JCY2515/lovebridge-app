@@ -227,17 +227,20 @@ export class SpeechService {
         const recognition = new ((window as any).webkitSpeechRecognition || 
                               (window as any).SpeechRecognition)();
         
-        recognition.continuous = false;
+        recognition.continuous = true;  // Keep listening for longer phrases
         recognition.interimResults = true;
         recognition.maxAlternatives = 3;
         recognition.lang = lang;
         
-        // Add timeout to prevent hanging
+        // Add a delay before stopping to allow processing
+        let speechEndTimer: NodeJS.Timeout | null = null;
+        
+        // Add timeout to prevent hanging - increased for better speech processing
         const timeout = setTimeout(() => {
           console.log(`Timeout for ${lang} - stopping recognition`);
           recognition.stop();
           reject(new Error(`Speech recognition timeout for ${lang}`));
-        }, 8000); // 8 second timeout
+        }, 15000); // 15 second timeout - more time to process speech
         
         let finalTranscript = '';
         
@@ -248,23 +251,35 @@ export class SpeechService {
             const transcript = event.results[i][0].transcript;
             if (event.results[i].isFinal) {
               finalTranscript += transcript;
+              console.log(`✅ Final result (${lang}):`, finalTranscript);
+              
+              // If we got a good result, resolve immediately
+              if (finalTranscript.trim().length > 0) {
+                clearTimeout(timeout);
+                if (speechEndTimer) clearTimeout(speechEndTimer);
+                recognition.stop();
+                resolve(finalTranscript.trim());
+                return;
+              }
             } else {
               interimTranscript += transcript;
             }
           }
           
           console.log(`Interim (${lang}):`, interimTranscript);
-          console.log(`Final (${lang}):`, finalTranscript);
+          if (finalTranscript) console.log(`Final so far (${lang}):`, finalTranscript);
         };
         
         recognition.onerror = (event: any) => {
           clearTimeout(timeout);
+          if (speechEndTimer) clearTimeout(speechEndTimer);
           console.error(`Speech recognition error (${lang}):`, event.error);
           reject(new Error(`Speech recognition error: ${event.error}`));
         };
 
         recognition.onend = () => {
           clearTimeout(timeout);
+          if (speechEndTimer) clearTimeout(speechEndTimer);
           console.log(`Speech recognition ended (${lang}):`, finalTranscript);
           if (finalTranscript.trim().length > 0) {
             resolve(finalTranscript.trim());
@@ -283,7 +298,11 @@ export class SpeechService {
         };
         
         recognition.onspeechend = () => {
-          console.log(`Speech ended for ${lang}`);
+          console.log(`Speech ended for ${lang} - waiting for processing...`);
+          // Wait 2 seconds after speech ends before stopping to allow processing
+          speechEndTimer = setTimeout(() => {
+            recognition.stop();
+          }, 2000);
         };
         
         recognition.onaudiostart = () => {

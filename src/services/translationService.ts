@@ -135,8 +135,57 @@ export class SpeechService {
     return data.text || '';
   }
 
+  // Check microphone audio levels
+  private static async checkMicrophoneLevel(): Promise<boolean> {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const audioContext = new AudioContext();
+      const analyser = audioContext.createAnalyser();
+      const microphone = audioContext.createMediaStreamSource(stream);
+      
+      analyser.fftSize = 256;
+      microphone.connect(analyser);
+      
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      
+      return new Promise((resolve) => {
+        let maxVolume = 0;
+        let checkCount = 0;
+        const maxChecks = 30; // Check for 0.6 seconds (30 * 20ms)
+        
+        const checkVolume = () => {
+          analyser.getByteFrequencyData(dataArray);
+          const volume = Math.max.apply(null, Array.from(dataArray));
+          maxVolume = Math.max(maxVolume, volume);
+          
+          checkCount++;
+          if (checkCount < maxChecks) {
+            setTimeout(checkVolume, 20);
+          } else {
+            console.log(`Max microphone volume detected: ${maxVolume}`);
+            stream.getTracks().forEach(track => track.stop());
+            audioContext.close();
+            resolve(maxVolume > 5); // Return true if we detected some audio
+          }
+        };
+        
+        checkVolume();
+      });
+    } catch (error) {
+      console.error('Microphone check failed:', error);
+      return false;
+    }
+  }
+
   // Option 2: Enhanced Web Speech API with multiple language support
   static async convertSpeechToTextWeb(preferredLang?: string): Promise<string> {
+    // First check if microphone is working
+    console.log('Checking microphone audio levels...');
+    const micWorking = await this.checkMicrophoneLevel();
+    if (!micWorking) {
+      console.warn('Low or no audio detected from microphone');
+    }
+    
     // Try different languages in order of likelihood
     const languagesToTry = [
       'zh-HK', // Cantonese (Hong Kong)
@@ -183,6 +232,13 @@ export class SpeechService {
         recognition.maxAlternatives = 3;
         recognition.lang = lang;
         
+        // Add timeout to prevent hanging
+        const timeout = setTimeout(() => {
+          console.log(`Timeout for ${lang} - stopping recognition`);
+          recognition.stop();
+          reject(new Error(`Speech recognition timeout for ${lang}`));
+        }, 8000); // 8 second timeout
+        
         let finalTranscript = '';
         
         recognition.onresult = (event: any) => {
@@ -202,11 +258,13 @@ export class SpeechService {
         };
         
         recognition.onerror = (event: any) => {
+          clearTimeout(timeout);
           console.error(`Speech recognition error (${lang}):`, event.error);
           reject(new Error(`Speech recognition error: ${event.error}`));
         };
 
         recognition.onend = () => {
+          clearTimeout(timeout);
           console.log(`Speech recognition ended (${lang}):`, finalTranscript);
           if (finalTranscript.trim().length > 0) {
             resolve(finalTranscript.trim());
@@ -215,13 +273,28 @@ export class SpeechService {
           }
         };
         
-        recognition.start();
+        // Start listening for audio
+        recognition.onstart = () => {
+          console.log(`Started listening for ${lang}`);
+        };
         
-        // Timeout after 10 seconds per language
-        setTimeout(() => {
-          recognition.stop();
-          reject(new Error(`Speech recognition timeout for ${lang}`));
-        }, 10000);
+        recognition.onspeechstart = () => {
+          console.log(`Speech detected for ${lang}`);
+        };
+        
+        recognition.onspeechend = () => {
+          console.log(`Speech ended for ${lang}`);
+        };
+        
+        recognition.onaudiostart = () => {
+          console.log(`Audio input started for ${lang}`);
+        };
+        
+        recognition.onaudioend = () => {
+          console.log(`Audio input ended for ${lang}`);
+        };
+        
+        recognition.start();
         
       } catch (error) {
         reject(error);

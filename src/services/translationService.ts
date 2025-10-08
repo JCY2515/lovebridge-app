@@ -1,4 +1,4 @@
-// Translation service using OpenRouter GPT-4.1 Mini
+// Translation service using OpenRouter GPT-4o Mini (Latest & Most Cost-Effective)
 const OPENROUTER_API_KEY = process.env.REACT_APP_OPENROUTER_API_KEY;
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
@@ -16,75 +16,41 @@ export interface TranslationResponse {
 }
 
 export class TranslationService {
-  private static async callOpenRouter(prompt: string): Promise<string> {
-    if (!OPENROUTER_API_KEY) {
-      throw new Error('OpenRouter API key not configured');
-    }
-
-    const response = await fetch(OPENROUTER_URL, {
+  private static async callSecureBackend(text: string, mode: string): Promise<string> {
+    const response = await fetch('/api/translate', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
         'Content-Type': 'application/json',
-        'HTTP-Referer': window.location.origin,
-        'X-Title': 'LoveBridge Translation App'
       },
       body: JSON.stringify({
-        model: 'openai/gpt-4-1106-preview', // GPT-4.1 Mini
-        messages: [
-          {
-            role: 'system',
-            content: `You are a professional translator specializing in romantic conversations between couples. 
-            You handle mixed languages (English, Cantonese, Japanese) with emotional sensitivity.
-            Always preserve the loving tone and intimate meaning of the message.
-            Respond only with the translation, no explanations.`
-          },
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        temperature: 0.3,
-        max_tokens: 200
+        text: text,
+        mode: mode
       })
     });
 
     if (!response.ok) {
-      throw new Error(`OpenRouter API error: ${response.status}`);
+      throw new Error(`Backend API error: ${response.status}`);
     }
 
     const data = await response.json();
-    return data.choices[0]?.message?.content || '';
+    if (!data.success) {
+      throw new Error(data.error || 'Translation failed');
+    }
+    
+    return data.translation || '';
   }
 
   static async translateToJapanese(text: string): Promise<string> {
-    const prompt = `Translate this mixed language text to natural, romantic Japanese. The text may contain English, Cantonese, or Japanese mixed together. Preserve the emotional tone and intimate meaning:
-
-"${text}"
-
-Japanese translation:`;
-
-    return await this.callOpenRouter(prompt);
+    return await this.callSecureBackend(text, 'toJapanese');
   }
 
   static async translateToCantonese(text: string): Promise<string> {
-    const prompt = `Translate this Japanese text to natural, romantic Cantonese. Preserve the emotional tone and intimate meaning:
-
-"${text}"
-
-Cantonese translation:`;
-
-    return await this.callOpenRouter(prompt);
+    return await this.callSecureBackend(text, 'toCantonese');
   }
 
   static async translateToEnglish(text: string): Promise<string> {
-    const prompt = `Translate this Japanese text to natural, romantic English. Preserve the emotional tone and intimate meaning:
-
-"${text}"
-
-English translation:`;
-
-    return await this.callOpenRouter(prompt);
+    // For English, we can translate from Japanese to English via backend
+    return await this.callSecureBackend(text, 'toEnglish');
   }
 
   static async processFullTranslation(

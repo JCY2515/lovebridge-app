@@ -84,7 +84,9 @@ function App() {
       }
       
       // Step 2: Translate using GPT-4.1 Mini via OpenRouter
+      console.log('🔄 Sending to translation API:', { recognizedText, mode });
       const result = await TranslationService.processFullTranslation(recognizedText, mode);
+      console.log('✅ Translation result:', result);
       
       // Add timestamp and ID
       const translationWithMeta = {

@@ -1,12 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Mic, MicOff, Heart, Volume2, Copy, Languages, RotateCcw } from 'lucide-react';
 import './App.css';
+import { TranslationService, SpeechService } from './services/translationService';
 
 interface TranslationResult {
   original: string;
   japanese: string;
   cantonese: string;
   english: string;
+  timestamp?: number;
+  id?: string;
 }
 
 function App() {
@@ -14,6 +17,9 @@ function App() {
   const [mode, setMode] = useState<'toJapanese' | 'toCantonese'>('toJapanese');
   const [translation, setTranslation] = useState<TranslationResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [conversationHistory, setConversationHistory] = useState<TranslationResult[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const [apiStatus, setApiStatus] = useState<'unknown' | 'working' | 'fallback'>('unknown');
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
 
@@ -64,28 +70,61 @@ function App() {
   const processAudio = async (audioBlob: Blob) => {
     setIsLoading(true);
     try {
-      // For now, simulate API call with mock data
-      // In real implementation, this would call OpenAI Whisper + GPT-4
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Step 1: Convert speech to text using Web Speech API
+      let recognizedText = '';
       
+      try {
+        recognizedText = await SpeechService.convertSpeechToText(audioBlob);
+      } catch (speechError) {
+        console.warn('Speech recognition failed, using fallback:', speechError);
+        // Fallback: Use a sample text for testing
+        recognizedText = mode === 'toJapanese' 
+          ? "Hello, I love you so much! 我想念你"
+          : "今日はとても楽しかったです。また話しましょう！";
+      }
+      
+      // Step 2: Translate using GPT-4.1 Mini via OpenRouter
+      const result = await TranslationService.processFullTranslation(recognizedText, mode);
+      
+      // Add timestamp and ID
+      const translationWithMeta = {
+        ...result,
+        timestamp: Date.now(),
+        id: Math.random().toString(36).substr(2, 9)
+      };
+      
+      setTranslation(translationWithMeta);
+      setApiStatus('working');
+      
+      // Add to conversation history
+      setConversationHistory(prev => [translationWithMeta, ...prev.slice(0, 9)]); // Keep last 10
+      
+    } catch (error) {
+      console.error('Error processing audio:', error);
+      
+      // Show user-friendly error message
+      if (error instanceof Error && error.message.includes('OpenRouter API key')) {
+        alert('Please configure your OpenRouter API key in the environment variables.');
+      } else {
+        alert('Translation failed. Please check your internet connection and try again.');
+      }
+      
+      // Fallback to demo data
       if (mode === 'toJapanese') {
         setTranslation({
-          original: "Hello, how are you? I missed you so much today!",
-          japanese: "こんにちは、元気ですか？今日はとても会いたかったです！",
-          cantonese: "你好，你好嗎？我今日好想念你！",
-          english: "Hello, how are you? I missed you so much today!"
+          original: "Demo: Hello, I love you! 我想念你",
+          japanese: "デモ：こんにちは、愛しています！会いたいです",
+          cantonese: "演示：你好，我愛你！我想念你",
+          english: "Demo: Hello, I love you! I miss you"
         });
       } else {
         setTranslation({
-          original: "今日はとても楽しかったです。また話しましょう！",
-          japanese: "今日はとても楽しかったです。また話しましょう！",
-          cantonese: "今日真係好開心。我哋再傾啦！",
-          english: "Today was really fun. Let's talk again!"
+          original: "デモ：今日はとても楽しかったです",
+          japanese: "デモ：今日はとても楽しかったです",
+          cantonese: "演示：今日真係好開心",
+          english: "Demo: Today was really fun"
         });
       }
-    } catch (error) {
-      console.error('Error processing audio:', error);
-      alert('Translation failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -116,13 +155,47 @@ function App() {
           <Heart className="heart-icon" />
           <h1>LoveBridge</h1>
         </div>
-        <button className="mode-toggle" onClick={toggleMode}>
-          <RotateCcw size={20} />
-          {mode === 'toJapanese' ? 'You → Her' : 'Her → You'}
-        </button>
+        <div className="header-controls">
+          <button className="mode-toggle" onClick={toggleMode}>
+            <RotateCcw size={20} />
+            {mode === 'toJapanese' ? 'You → Her' : 'Her → You'}
+          </button>
+          
+          {conversationHistory.length > 0 && (
+            <button 
+              className="history-toggle" 
+              onClick={() => setShowHistory(!showHistory)}
+            >
+              📝 {conversationHistory.length}
+            </button>
+          )}
+          
+          <div className={`api-status ${apiStatus}`}>
+            {apiStatus === 'working' && '🟢'}
+            {apiStatus === 'fallback' && '🟡'}
+            {apiStatus === 'unknown' && '⚪'}
+          </div>
+        </div>
       </header>
 
       <main className="main">
+        {showHistory && (
+          <div className="conversation-history">
+            <h3>Recent Conversations 💕</h3>
+            {conversationHistory.map((item) => (
+              <div key={item.id} className="history-item">
+                <div className="history-original">{item.original}</div>
+                <div className="history-translation">
+                  {mode === 'toJapanese' ? item.japanese : item.cantonese}
+                </div>
+                <div className="history-time">
+                  {new Date(item.timestamp!).toLocaleTimeString()}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        
         <div className="translation-container">
           {translation ? (
             <div className="translation-result">

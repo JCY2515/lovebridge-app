@@ -16,6 +16,37 @@
   border-bottom: 1px solid rgba(255, 255, 255, 0.2);
 }
 
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.history-toggle {
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 20px;
+  color: white;
+  padding: 0.4rem 0.8rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.3s ease;
+}
+
+.history-toggle:hover {
+  background: rgba(255, 255, 255, 0.25);
+  transform: translateY(-1px);
+}
+
+.api-status {
+  font-size: 1.2rem;
+  transition: all 0.3s ease;
+}
+
+.api-status.working { opacity: 1; }
+.api-status.fallback { opacity: 0.8; }
+.api-status.unknown { opacity: 0.5; }
+
 .logo {
   display: flex;
   align-items: center;
@@ -274,6 +305,50 @@
   }
 }
 
+/* Conversation History Styles */
+.conversation-history {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(10px);
+  border-radius: 15px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.conversation-history h3 {
+  margin: 0 0 1rem 0;
+  text-align: center;
+  font-size: 1.1rem;
+  opacity: 0.9;
+}
+
+.history-item {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  padding: 0.8rem;
+  margin-bottom: 0.5rem;
+  border-left: 3px solid rgba(255, 105, 180, 0.5);
+}
+
+.history-original {
+  font-size: 0.9rem;
+  opacity: 0.8;
+  margin-bottom: 0.3rem;
+}
+
+.history-translation {
+  font-size: 1rem;
+  font-weight: 500;
+  margin-bottom: 0.3rem;
+}
+
+.history-time {
+  font-size: 0.8rem;
+  opacity: 0.6;
+  text-align: right;
+}
+
 /* Extra small screens */
 @media (max-width: 480px) {
   .translation-result {
@@ -290,5 +365,14 @@
   
   .actions {
     flex-wrap: wrap;
+  }
+  
+  .header-controls {
+    gap: 0.5rem;
+  }
+  
+  .history-toggle {
+    padding: 0.3rem 0.6rem;
+    font-size: 0.8rem;
   }
 }

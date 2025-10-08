@@ -198,7 +198,7 @@ function App() {
         <div className="header-controls">
           <button className="mode-toggle" onClick={toggleMode}>
             <RotateCcw size={20} />
-            {mode === 'toJapanese' ? 'You → Her' : 'Her → You'}
+            {mode === 'toJapanese' ? 'Johnny → まのちゃん' : 'まのちゃん → Johnny'}
           </button>
           
           {conversationHistory.length > 0 && (
@@ -249,7 +249,7 @@ function App() {
 
               {mode === 'toJapanese' ? (
                 <div className="translated-text japanese">
-                  <h3>Japanese for her 💕:</h3>
+                  <h3>Japanese for まのちゃん 💕:</h3>
                   <p className="large-text">{translation.japanese}</p>
                   <div className="actions">
                     <button onClick={() => speak(translation.japanese, 'ja-JP')}>
@@ -265,7 +265,7 @@ function App() {
               ) : (
                 <>
                   <div className="translated-text cantonese">
-                    <h3>Cantonese for you:</h3>
+                    <h3>Cantonese for Johnny:</h3>
                     <p className="large-text">{translation.cantonese}</p>
                     <div className="actions">
                       <button onClick={() => speak(translation.cantonese, 'zh-HK')}>
@@ -294,8 +294,8 @@ function App() {
               <h2>Ready to bridge your hearts 💕</h2>
               <p>
                 {mode === 'toJapanese' 
-                  ? 'Speak in English/Cantonese/Japanese and show her the translation!'
-                  : 'Let her speak in Japanese and you\'ll understand!'}
+                  ? 'Speak in English/Cantonese/Japanese and show まのちゃん the translation!'
+                  : 'Let まのちゃん speak in Japanese and Johnny will understand!'}
               </p>
             </div>
           )}
@@ -325,8 +325,8 @@ function App() {
                   onChange={(e) => setTextInput(e.target.value)}
                   placeholder={
                     mode === 'toJapanese' 
-                      ? 'Type your message in English, Cantonese, or Japanese...' 
-                      : 'Enter the Japanese message to translate...'
+                      ? 'Johnny: Type your message in English, Cantonese, or Japanese...' 
+                      : 'まのちゃん: Enter your Japanese message...'
                   }
                   className="text-input"
                   rows={3}

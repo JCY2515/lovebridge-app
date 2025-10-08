@@ -18,6 +18,8 @@ export interface TranslationResponse {
 export class TranslationService {
   private static async callSecureBackend(text: string, mode: string): Promise<string> {
     try {
+      console.log('🌐 Calling backend API:', { text, mode });
+      
       const response = await fetch('/api/translate', {
         method: 'POST',
         headers: {
@@ -28,6 +30,8 @@ export class TranslationService {
           mode: mode
         })
       });
+      
+      console.log('📡 Backend response status:', response.status);
 
       if (!response.ok) {
         console.error('Backend API error:', response.status);
@@ -35,11 +39,14 @@ export class TranslationService {
       }
 
       const data = await response.json();
+      console.log('📦 Backend response data:', data);
+      
       if (!data.success) {
-        console.error('Translation error:', data.error);
+        console.error('❌ Translation error:', data.error);
         throw new Error(data.error || 'Translation failed');
       }
       
+      console.log('✅ Translation successful:', data.translation);
       return data.translation || '';
     } catch (error) {
       console.error('Frontend API call failed:', error);
